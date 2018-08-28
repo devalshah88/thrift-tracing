@@ -1,5 +1,17 @@
 package tracing
 
+/* This file contains code that wraps a thrift Processor with a function that
+   extracts trace identifiers from the request headers and injects them into the context object
+   To use it, simply do something like below in the server set up code :
+
+   thrift.NewTSimpleServer4(
+				MergeAndWrap(tracer, logger, addthrift.NewAddServiceProcessor(thriftServer)),
+				thriftSocket,
+				transportFactory,
+				protocolFactory)
+
+    For a better example, see examples/addsvc
+*/
 import (
 	"context"
 
@@ -9,9 +21,9 @@ import (
 	"github.com/opentracing/opentracing-go/ext"
 )
 
-// MutableTProcessor interface contains the functions needed to merge processors together
+// mutableTProcessor interface contains the functions needed to merge processors together
 // It is used by the MergeAndWrap function
-type MutableTProcessor interface {
+type mutableTProcessor interface {
 	Process(ctx context.Context, in, out thrift.TProtocol) (bool, thrift.TException)
 	AddToProcessorMap(key string, processor thrift.TProcessorFunction)
 	ProcessorMap() map[string]thrift.TProcessorFunction
@@ -19,7 +31,7 @@ type MutableTProcessor interface {
 
 // MergeAndWrap merges multiple processors together and Wraps each TProcessorFunction
 // object with a wrapper that can inject header data into the context object
-func MergeAndWrap(tracer opentracing.Tracer, logger log.Logger, processors ...MutableTProcessor) thrift.TProcessor {
+func MergeAndWrap(tracer opentracing.Tracer, logger log.Logger, processors ...mutableTProcessor) thrift.TProcessor {
 	firstProcessor := processors[0]
 	for k, v := range firstProcessor.ProcessorMap() {
 		firstProcessor.AddToProcessorMap(k, wrapProcessorFunction(v, k, tracer, logger))
